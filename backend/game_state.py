@@ -255,15 +255,13 @@ class GameState:
     # ── Craft assembly ────────────────────────────────────────────────────────
 
     def save_craft(self, name: str, part_names: list[str]) -> dict:
-        """Build a Spacecraft from module names (top→bottom) and store it."""
-        from sim.module_db import build_flat_catalog
-        cat = build_flat_catalog()
-        parts = []
-        for pn in part_names:
-            m = cat.get(pn)
-            if m is None:
-                return {"error": f"unknown module: {pn}"}
-            parts.append(m)
+        """Build a new Spacecraft from module names (top→bottom) and store it."""
+        name = (name or "Spacecraft").strip()[:40] or "Spacecraft"
+        if self.craft_by_name(name):
+            return {"error": f"a craft named '{name}' already exists — use a new name or Update"}
+        parts, err = self._build_parts(part_names)
+        if err:
+            return err
         sc = Spacecraft(name=name, parts=parts)
         self.saved_crafts.append(sc)
         stages = sc.compute_stages()
@@ -280,7 +278,7 @@ class GameState:
         }
 
     def craft_spec(self, sc: Spacecraft) -> dict:
-        """Computed specs for a saved craft, used by the launch pipeline."""
+        """Computed specs for a saved craft, used by the launch pipeline + builder."""
         from sim.craft import ModuleType
         part_names = [p.name for p in sc.parts if p.module_type != ModuleType.DECOUPLER]
         return {
@@ -292,10 +290,65 @@ class GameState:
             "twr": round(sc.twr, 2),
             "crew": sc.crew,
             "partNames": part_names,
+            # Full ordered part list (incl. decouplers) so the builder can reload it
+            "partList": [p.name for p in sc.parts],
         }
 
     def craft_by_name(self, name: str) -> Optional[Spacecraft]:
         return next((c for c in self.saved_crafts if c.name == name), None)
+
+    def _build_parts(self, part_names: list[str]):
+        from sim.module_db import build_flat_catalog
+        cat = build_flat_catalog()
+        parts = []
+        for pn in part_names:
+            m = cat.get(pn)
+            if m is None:
+                return None, {"error": f"unknown module: {pn}"}
+            parts.append(m)
+        return parts, None
+
+    def update_craft(self, original_name: str, new_name: str,
+                     part_names: list[str]) -> dict:
+        """Edit/rename an existing saved craft in place."""
+        sc = self.craft_by_name(original_name)
+        if not sc:
+            return {"error": f"no craft named '{original_name}'"}
+        new_name = (new_name or original_name).strip()[:40] or original_name
+        if new_name != original_name and self.craft_by_name(new_name):
+            return {"error": f"a craft named '{new_name}' already exists"}
+        if not part_names:
+            return {"error": "no parts"}
+        parts, err = self._build_parts(part_names)
+        if err:
+            return err
+        sc.name = new_name
+        sc.parts = parts
+        sc.__post_init__()   # recompute initial fuel state
+        # keep any contracts that reference this craft pointing at the new name
+        for c in self.contracts:
+            if c.craft_name == original_name:
+                c.craft_name = new_name
+        self.system_msg(
+            f"Vehicle '{original_name}' updated → '{new_name}' "
+            f"({len(sc.compute_stages())} stage(s), ΔV {sc.total_delta_v:,.0f} m/s).")
+        return self.craft_spec(sc)
+
+    def delete_craft(self, name: str) -> dict:
+        sc = self.craft_by_name(name)
+        if not sc:
+            return {"error": f"no craft named '{name}'"}
+        self.saved_crafts.remove(sc)
+        # Un-assign it from any contract that was using it
+        from .contracts import ContractStatus
+        for c in self.contracts:
+            if c.craft_name == name:
+                c.craft_name = None
+                c.design_ok = False
+                if c.status in (ContractStatus.VEHICLE_ASSIGNED, ContractStatus.READY):
+                    c.status = ContractStatus.PLANNED
+        self.system_msg(f"Vehicle '{name}' deleted from the library.")
+        return {"ok": True, "name": name}
 
     # ── Contract pipeline ─────────────────────────────────────────────────────
 

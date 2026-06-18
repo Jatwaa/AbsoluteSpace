@@ -182,9 +182,15 @@ def get_windows(origin: str = Query("Earth"), dest: str = Query("Mars")):
     }
 
 
+@app.get("/api/crafts")
+def list_crafts():
+    """Full saved-craft library (specs + ordered part list for loading)."""
+    return {"crafts": [game.craft_spec(sc) for sc in game.saved_crafts]}
+
+
 @app.post("/api/craft")
 async def save_craft(payload: dict):
-    """Assemble and store a craft from an ordered list of module names."""
+    """Assemble and store a NEW craft from an ordered list of module names."""
     name = (payload.get("name") or "Spacecraft").strip()[:40]
     part_names = payload.get("parts") or []
     if not part_names:
@@ -192,9 +198,32 @@ async def save_craft(payload: dict):
     summary = game.save_craft(name, part_names)
     if "error" in summary:
         return JSONResponse(summary, status_code=400)
-    await hub.broadcast(serialize_state(game))
-    await hub.broadcast(serialize_chat(game))
+    await _broadcast_all()
     return summary
+
+
+@app.post("/api/craft/update")
+async def update_craft(payload: dict):
+    """Edit/rename an existing saved craft."""
+    original = (payload.get("originalName") or "").strip()
+    name = (payload.get("name") or original).strip()[:40]
+    part_names = payload.get("parts") or []
+    summary = game.update_craft(original, name, part_names)
+    if "error" in summary:
+        return JSONResponse(summary, status_code=400)
+    await _broadcast_all()
+    return summary
+
+
+@app.post("/api/craft/delete")
+async def delete_craft(payload: dict):
+    """Remove a saved craft from the library."""
+    name = (payload.get("name") or "").strip()
+    res = game.delete_craft(name)
+    if "error" in res:
+        return JSONResponse(res, status_code=400)
+    await _broadcast_all()
+    return res
 
 
 # ── WebSocket ─────────────────────────────────────────────────────────────────

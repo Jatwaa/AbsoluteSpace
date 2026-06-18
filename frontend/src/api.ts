@@ -27,6 +27,44 @@ export async function saveCraft(
   return r.json();
 }
 
+export interface CraftSummary {
+  name: string;
+  stages: number;
+  totalMassTons: number;
+  totalDeltaV: number;
+  twr: number;
+  crew: number;
+  partNames: string[];
+  partList: string[]; // full ordered parts incl. decouplers — for loading
+}
+
+export async function getCrafts(): Promise<CraftSummary[]> {
+  const r = await fetch("/api/crafts");
+  return (await r.json()).crafts as CraftSummary[];
+}
+
+export async function updateCraft(
+  originalName: string,
+  name: string,
+  parts: string[]
+): Promise<SaveCraftResult> {
+  const r = await fetch("/api/craft/update", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ originalName, name, parts }),
+  });
+  return r.json();
+}
+
+export async function deleteCraft(name: string): Promise<{ ok?: boolean; error?: string }> {
+  const r = await fetch("/api/craft/delete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  return r.json();
+}
+
 export interface LaunchSite {
   id: string;
   name: string;
