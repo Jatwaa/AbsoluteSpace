@@ -49,10 +49,13 @@ class GameState:
 
         self.mc = MissionControl(self.bodies, self.sim_time)
 
-        # Chat / players
+        # Chat / players / director identities
         self._chat_id = itertools.count(1)
         self.chat: list[ChatMessage] = []
         self.players: dict[str, str] = {}   # connection_id -> display name
+        from .directors import DirectorRegistry
+        self.directors = DirectorRegistry()
+        self.conn_dir: dict[str, int] = {}  # connection_id -> director number
 
         # Saved craft designs (from the Vehicle Assembly builder)
         self.saved_crafts: list[Spacecraft] = []
@@ -181,16 +184,63 @@ class GameState:
     def toggle_pause(self):
         self.paused = not self.paused
 
-    # ── Players & chat ────────────────────────────────────────────────────────
+    # ── Players, directors & chat ──────────────────────────────────────────────
 
-    def join(self, conn_id: str, name: str):
-        self.players[conn_id] = name
-        self.system_msg(f"{name} joined Mission Control.")
+    def join(self, conn_id: str):
+        """Assign a fresh Director identity to a new connection."""
+        d = self.directors.assign_new()
+        self.conn_dir[conn_id] = d.number
+        self.players[conn_id] = d.name
+        self.system_msg(f"{d.name} joined Mission Control.")
+        return d
 
     def leave(self, conn_id: str):
         name = self.players.pop(conn_id, None)
+        self.conn_dir.pop(conn_id, None)
         if name:
             self.system_msg(f"{name} left Mission Control.")
+
+    def director_for(self, conn_id: str):
+        num = self.conn_dir.get(conn_id)
+        return self.directors.get(num) if num is not None else None
+
+    def director_id_for(self, conn_id: str) -> str:
+        d = self.director_for(conn_id)
+        return d.id if d else "solo"
+
+    def player_name(self, conn_id: str) -> str:
+        return self.players.get(conn_id, "Director")
+
+    def rename_director(self, conn_id: str, name: str) -> dict:
+        d = self.director_for(conn_id)
+        if not d:
+            return {"error": "no director"}
+        old = d.name
+        self.directors.rename(d.number, name)
+        self.players[conn_id] = d.name
+        self.system_msg(f"{old} is now known as {d.name}.")
+        return {"ok": True, "director": d.public()}
+
+    def secure_director(self, conn_id: str, pin: str) -> dict:
+        d = self.director_for(conn_id)
+        if not d:
+            return {"error": "no director"}
+        res = self.directors.set_pin(d.number, pin)
+        if res.get("ok"):
+            self.system_msg(f"{d.name} secured their Director identity with a PIN.")
+            res["director"] = d.public()
+        return res
+
+    def claim_director(self, conn_id: str, number: str, pin: str) -> dict:
+        d = self.directors.get(number)
+        if not d:
+            return {"error": "Director number not found"}
+        if d.secured and not self.directors.verify(number, pin):
+            return {"error": "incorrect PIN"}
+        self.conn_dir[conn_id] = d.number
+        self.players[conn_id] = d.name
+        self.system_msg(f"{d.name} resumed their Director identity.")
+        return {"ok": True, "director": d.public()}
 
     def add_chat(self, author: str, text: str, role: str = "DIRECTOR") -> ChatMessage:
         msg = ChatMessage(next(self._chat_id), author, role, text, self.sim_time)

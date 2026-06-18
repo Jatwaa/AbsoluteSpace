@@ -199,14 +199,23 @@ async def save_craft(payload: dict):
 
 # ── WebSocket ─────────────────────────────────────────────────────────────────
 
+def _ident_fields(cid: str) -> dict:
+    d = game.director_for(cid)
+    pub = d.public() if d else {"directorId": "solo", "name": "Director", "secured": False}
+    return {"playerId": pub["directorId"], "name": pub["name"], "secured": pub["secured"]}
+
+
+def _welcome(cid: str) -> dict:
+    return {"type": "welcome", "connId": cid, **_ident_fields(cid)}
+
+
 @app.websocket("/ws")
 async def ws_endpoint(ws: WebSocket):
     cid = await hub.connect(ws)
-    name = f"Director-{cid[:4]}"
-    game.join(cid, name)
+    game.join(cid)   # assigns a fresh Director identity
 
     # Initial burst: identity, full state, chat history
-    await ws.send_json({"type": "welcome", "playerId": cid, "name": name})
+    await ws.send_json(_welcome(cid))
     await ws.send_json(serialize_state(game))
     await ws.send_json(serialize_chat(game))
     await hub.broadcast(serialize_chat(game))
@@ -214,7 +223,7 @@ async def ws_endpoint(ws: WebSocket):
     try:
         while True:
             data = await ws.receive_json()
-            await handle_client_message(cid, name, data)
+            await handle_client_message(cid, data, ws)
     except WebSocketDisconnect:
         pass
     except Exception:
@@ -226,24 +235,41 @@ async def ws_endpoint(ws: WebSocket):
         await hub.broadcast(serialize_state(game))
 
 
-async def handle_client_message(cid: str, name: str, data: dict):
+async def handle_client_message(cid: str, data: dict, ws: WebSocket):
     action = data.get("action")
 
     if action == "chat":
         text = (data.get("text") or "").strip()
         if text:
-            author = game.players.get(cid, name)
-            game.add_chat(author, text, role="DIRECTOR")
+            game.add_chat(game.player_name(cid), text, role="DIRECTOR")
             await hub.broadcast(serialize_chat(game))
 
     elif action == "setName":
         new = (data.get("name") or "").strip()[:24]
         if new:
-            old = game.players.get(cid, name)
-            game.players[cid] = new
-            game.system_msg(f"{old} is now known as {new}.")
+            game.rename_director(cid, new)
+            await ws.send_json(_welcome(cid))
             await hub.broadcast(serialize_chat(game))
             await hub.broadcast(serialize_state(game))
+
+    elif action == "setPin":
+        res = game.secure_director(cid, str(data.get("pin", "")))
+        await ws.send_json({"type": "identityResult", "ok": "ok" in res,
+                            "error": res.get("error"), **_ident_fields(cid)})
+        await hub.broadcast(serialize_chat(game))
+
+    elif action == "clearPin":
+        d = game.director_for(cid)
+        res = game.directors.clear_pin(d.number, str(data.get("pin", ""))) if d else {"error": "no director"}
+        await ws.send_json({"type": "identityResult", "ok": "ok" in res,
+                            "error": res.get("error"), **_ident_fields(cid)})
+
+    elif action == "claimDirector":
+        res = game.claim_director(cid, str(data.get("directorId", "")), str(data.get("pin", "")))
+        await ws.send_json({"type": "identityResult", "ok": "ok" in res,
+                            "error": res.get("error"), **_ident_fields(cid)})
+        await hub.broadcast(serialize_chat(game))
+        await hub.broadcast(serialize_state(game))
 
     elif action == "warpUp":
         game.warp_up()
@@ -256,7 +282,8 @@ async def handle_client_message(cid: str, name: str, data: dict):
 
     # ── Launch pipeline actions ──
     elif action == "acceptContract":
-        game.accept_contract(data.get("id", ""), cid, game.players.get(cid, name))
+        game.accept_contract(data.get("id", ""), game.director_id_for(cid),
+                             game.player_name(cid))
         await _broadcast_all()
     elif action == "planContract":
         game.plan_contract(data.get("id", ""), int(data.get("windowIndex", 0)))

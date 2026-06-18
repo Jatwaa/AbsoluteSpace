@@ -3,6 +3,7 @@ import { useGameSocket } from "./useGameSocket";
 import { CommandCenter } from "./components/CommandCenter";
 import { CraftBuilder } from "./components/CraftBuilder";
 import { LaunchPad } from "./components/LaunchPad";
+import { DirectorPanel } from "./components/DirectorPanel";
 
 type View = "command" | "builder" | "launchpad";
 
@@ -10,6 +11,7 @@ export default function App() {
   const conn = useGameSocket();
   const st = conn.state;
   const [view, setView] = useState<View>("command");
+  const [showDirector, setShowDirector] = useState(false);
 
   const handleFacility = (id: string) => {
     if (id.startsWith("MISSION:")) {
@@ -33,10 +35,11 @@ export default function App() {
       <header className="app-header">
         <div>
           <div className="title">ABSOLUTESPACE · MISSION OPERATIONS CENTER</div>
-          <div className="subtitle">
-            Flight Director Console
-            {conn.playerName ? ` — ${conn.playerName}` : ""}
-          </div>
+          <button className="director-chip" onClick={() => setShowDirector(true)}
+            title="Manage your Director identity & PIN">
+            {conn.secured ? "🔒" : "🔓"} Director #{conn.playerId ?? "----"}
+            {conn.playerName ? ` · ${conn.playerName}` : ""}
+          </button>
         </div>
         <div className="meta">
           <div className="funds" title="Available funding">
@@ -79,6 +82,8 @@ export default function App() {
         {st?.playerNames?.length ? ` — ${st.playerNames.join(", ")}` : ""}
         &nbsp;·&nbsp; resize / move this window like any standard app
       </footer>
+
+      {showDirector && <DirectorPanel conn={conn} onClose={() => setShowDirector(false)} />}
 
       {!conn.connected && (
         <div className="overlay">

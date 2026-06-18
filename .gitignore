@@ -17,6 +17,8 @@ node_modules/
 frontend/node_modules/
 frontend/dist/
 frontend/dist-ssr/
+frontend/tsconfig.tsbuildinfo
+*.tsbuildinfo
 *.local
 .vite/
 
@@ -32,3 +34,6 @@ Thumbs.db
 
 # ── Logs ────────────────────────────────────────────────
 *.log
+
+# ── Runtime data (per-deployment director profiles) ─────
+backend/directors.json

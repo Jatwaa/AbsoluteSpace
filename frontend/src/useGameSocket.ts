@@ -5,14 +5,25 @@ import type {
   ChatMessage,
 } from "./types";
 
+export interface IdentityResult {
+  ok: boolean;
+  error?: string;
+  ts: number;
+}
+
 export interface GameConnection {
   connected: boolean;
   playerId: string | null;
   playerName: string | null;
+  secured: boolean;
+  identityResult: IdentityResult | null;
   state: GameStateMsg | null;
   chat: ChatMessage[];
   sendChat: (text: string) => void;
   setName: (name: string) => void;
+  setPin: (pin: string) => void;
+  clearPin: (pin: string) => void;
+  claimDirector: (directorId: string, pin: string) => void;
   warpUp: () => void;
   warpDown: () => void;
   togglePause: () => void;
@@ -33,6 +44,8 @@ export function useGameSocket(): GameConnection {
   const [connected, setConnected] = useState(false);
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [playerName, setPlayerName] = useState<string | null>(null);
+  const [secured, setSecured] = useState(false);
+  const [identityResult, setIdentityResult] = useState<IdentityResult | null>(null);
   const [state, setState] = useState<GameStateMsg | null>(null);
   const [chat, setChat] = useState<ChatMessage[]>([]);
 
@@ -52,11 +65,20 @@ export function useGameSocket(): GameConnection {
       };
       ws.onerror = () => ws.close();
       ws.onmessage = (ev) => {
-        const msg = JSON.parse(ev.data) as ServerMessage;
+        const msg = JSON.parse(ev.data) as any;
         switch (msg.type) {
           case "welcome":
             setPlayerId(msg.playerId);
             setPlayerName(msg.name);
+            setSecured(!!msg.secured);
+            try { localStorage.setItem("as_directorId", msg.playerId); } catch {}
+            break;
+          case "identityResult":
+            if (typeof msg.playerId === "string") setPlayerId(msg.playerId);
+            if (typeof msg.name === "string") setPlayerName(msg.name);
+            setSecured(!!msg.secured);
+            setIdentityResult({ ok: !!msg.ok, error: msg.error, ts: Date.now() });
+            try { if (msg.playerId) localStorage.setItem("as_directorId", msg.playerId); } catch {}
             break;
           case "state":
             setState(msg);
@@ -87,6 +109,8 @@ export function useGameSocket(): GameConnection {
     connected,
     playerId,
     playerName,
+    secured,
+    identityResult,
     state,
     chat,
     sendChat: (text) => send({ action: "chat", text }),
@@ -94,6 +118,9 @@ export function useGameSocket(): GameConnection {
       setPlayerName(name);
       send({ action: "setName", name });
     },
+    setPin: (pin) => send({ action: "setPin", pin }),
+    clearPin: (pin) => send({ action: "clearPin", pin }),
+    claimDirector: (directorId, pin) => send({ action: "claimDirector", directorId, pin }),
     warpUp: () => send({ action: "warpUp" }),
     warpDown: () => send({ action: "warpDown" }),
     togglePause: () => send({ action: "togglePause" }),
