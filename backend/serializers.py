@@ -71,6 +71,7 @@ def serialize_state(gs) -> dict:
         "congressNote": gs.congress_note,
         "contracts": [_contract_dict(gs, c, now) for c in gs.contracts],
         "crafts": [gs.craft_spec(sc) for sc in gs.saved_crafts],
+        "launches": [seq.to_dict() for seq in gs.launch_sequences.values()],
     }
 
 

@@ -192,6 +192,52 @@ export interface CraftSpec {
   flight?: FlightSummary;
 }
 
+export interface LaunchTelemetry {
+  altitudeKm: number;
+  velocityKms: number;
+  qKpa: number;
+  throttle: number;
+  aoaOk: boolean;
+}
+export interface LaunchOption {
+  id: string;
+  label: string;
+  score: number;
+  hint: string;
+}
+export interface LaunchDecisionState {
+  code: string;
+  title: string;
+  detail: string;
+  crewFeedback: string;
+  options: LaunchOption[];
+  timeLeft: number;
+  deadline: number;
+  severe: boolean;
+  phase: string;
+}
+export interface LaunchLogLine { who: string; msg: string; }
+export interface LaunchSequenceState {
+  contractId: string;
+  title: string;
+  craftName: string;
+  ownerId: string | null;
+  crewed: boolean;
+  crewLabel: string;
+  status: "RUNNING" | "DECISION" | "DONE";
+  phaseIndex: number;
+  phaseKey: string;
+  phaseTitle: string;
+  layer: string;
+  phaseProgress: number;
+  phaseCount: number;
+  telemetry: LaunchTelemetry;
+  decision: LaunchDecisionState | null;
+  log: LaunchLogLine[];
+  result: string | null;
+  outcome: string | null;
+}
+
 export interface GameStateMsg {
   type: "state";
   simTime: number;
@@ -209,6 +255,7 @@ export interface GameStateMsg {
   congressNote: string;
   contracts: Contract[];
   crafts: CraftSpec[];
+  launches: LaunchSequenceState[];
 }
 
 export interface ChatMessage {

@@ -36,6 +36,8 @@ export interface GameConnection {
   cancelTask: (id: string, taskId: string) => void;
   correctIssue: (id: string, issueId: string) => void;
   launchContract: (id: string) => void;
+  launchDecision: (id: string, optionId: string) => void;
+  dismissLaunch: (id: string) => void;
 }
 
 // Connects to the FastAPI WebSocket (proxied through Vite at /ws in dev).
@@ -132,5 +134,7 @@ export function useGameSocket(): GameConnection {
     cancelTask: (id, taskId) => send({ action: "cancelTask", id, taskId }),
     correctIssue: (id, issueId) => send({ action: "correctIssue", id, issueId }),
     launchContract: (id) => send({ action: "launchContract", id }),
+    launchDecision: (id, optionId) => send({ action: "launchDecision", id, optionId }),
+    dismissLaunch: (id) => send({ action: "dismissLaunch", id }),
   };
 }

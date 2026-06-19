@@ -69,6 +69,7 @@ class GameState:
         self._task_counter = 1
         self.budget_penalty = 0.0    # congressional penalty applied to next allotment
         self.congress_note = ""      # last congressional action, for display
+        self.launch_sequences = {}   # contract_id -> LaunchSequence (live ascents)
 
         # Background controller chatter
         self._chatter_timer = 0.0
@@ -161,6 +162,9 @@ class GameState:
             self.mc.sim_time = self.sim_time
             self.mc.step(dt_sim)
             self._process_schedule()
+
+        # Launch sequences run in real time regardless of warp/pause.
+        self._advance_launches(dt_real)
 
         # Background chatter on a wall-clock cadence
         self._chatter_timer += dt_real
@@ -738,44 +742,61 @@ class GameState:
             self.system_msg(f"CONGRESS: {c.title} on budget "
                             f"(§{c.spent:.0f}M / §{c.budget:.0f}M).")
 
-        # ── Resolve the launch against the computed success probability ──
-        from .flight_odds import resolve_launch
+        # ── Begin the real-time launch sequence (resolved interactively) ──
+        import random as _random
+        from sim.aero import assess
+        from .launch_sequence import LaunchSequence
         odds = self.launch_odds(c)
-        res = resolve_launch(odds, random) if odds else {
-            "result": "FAILURE", "culprit": "no flight assessment", "rewardFactor": 0.0}
-        p_pct = round(odds["successProbability"] * 100) if odds else 0
-
-        flying = copy.deepcopy(sc)
-        wins = hohmann_windows(self.bodies[c.origin], self.bodies[c.destination],
-                               self.bodies["Sun"], self.sim_time, n_windows=5)
-        win = wins[0] if wins else None
-        if win is None:
-            self.funds += LAUNCH_COST
-            return {"error": "no launch window"}
-
-        payout = int(c.reward * res["rewardFactor"])
-        if res["result"] == "SUCCESS":
-            c.outcome = f"SUCCESS: nominal flight ({p_pct}% predicted). Full reward."
-            mission = self.mc.create_mission(flying, c.origin, c.destination, win)
-            c.mission_name = mission.name
-            self.system_msg(f"LAUNCH: {c.title} — SUCCESS ({p_pct}% odds). "
-                            f"Reward §{payout}M. Mission {mission.name} active.")
-        elif res["result"] == "DEGRADED":
-            c.outcome = (f"DEGRADED: {res['culprit']} in flight — crew recovered a "
-                         f"partial mission ({p_pct}% odds). Partial reward.")
-            mission = self.mc.create_mission(flying, c.origin, c.destination, win)
-            c.mission_name = mission.name
-            self.system_msg(f"LAUNCH: {c.title} — anomaly ({res['culprit']}) recovered. "
-                            f"DEGRADED. Partial reward §{payout}M.")
-        else:  # FAILURE
-            c.outcome = f"FAILURE: {res['culprit']} ({p_pct}% predicted success). Vehicle lost."
-            c.mission_name = None
-            self.system_msg(f"LAUNCH: {c.title} — LAUNCH FAILURE ({res['culprit']}). "
-                            f"Vehicle lost. Payout §{payout}M.")
-
-        c.status = ContractStatus.LAUNCHED
+        crew = odds["crew"] if odds else {"label": "Automated flight systems",
+                                          "skill": 0.7, "composure": 0.5, "crewed": False}
+        seq = LaunchSequence(c, self.craft_spec(sc), assess(sc), crew, _random.Random())
+        self.launch_sequences[c.id] = seq
+        c.status = ContractStatus.LAUNCHING
         c.conflict = None
-        self._recompute_conflicts()   # this contract released its slot
+        self._recompute_conflicts()   # slot is committed/released
+        self.system_msg(f"LAUNCH: {c.title} — ignition sequence started. Flight is GO.")
+        return {"ok": True, "launching": True}
+
+    # ── Live launch sequences ─────────────────────────────────────────────────
+
+    def _advance_launches(self, dt_real: float):
+        for cid, seq in list(self.launch_sequences.items()):
+            prev = seq.status
+            seq.step(dt_real)
+            if seq.status == "DONE" and not getattr(seq, "_finalized", False):
+                seq._finalized = True
+                self._finalize_launch(cid, seq)
+
+    def _finalize_launch(self, cid, seq):
+        import copy
+        from .contracts import ContractStatus
+        c = self.contract_by_id(cid)
+        if not c:
+            return
+        factor = {"SUCCESS": 1.0, "DEGRADED": 0.4, "ABORT": 0.0, "FAILURE": 0.0}.get(seq.result, 0.0)
+        payout = int(c.reward * factor)
+        c.status = ContractStatus.LAUNCHED
+        c.outcome = seq.outcome
+        c.mission_name = None
+        if seq.result in ("SUCCESS", "DEGRADED"):
+            sc = self.craft_by_name(c.craft_name)
+            wins = hohmann_windows(self.bodies[c.origin], self.bodies[c.destination],
+                                   self.bodies["Sun"], self.sim_time, n_windows=5)
+            if sc and wins:
+                mission = self.mc.create_mission(copy.deepcopy(sc), c.origin, c.destination, wins[0])
+                c.mission_name = mission.name
         self.funds += payout
-        return {"ok": True, "outcome": c.outcome, "result": res["result"],
-                "mission": c.mission_name}
+        self.system_msg(f"FLIGHT: {c.title} — {seq.result}. {seq.outcome} Payout §{payout}M.")
+
+    def launch_decision(self, cid: str, option_id: str) -> dict:
+        seq = self.launch_sequences.get(cid)
+        if not seq:
+            return {"error": "no active launch"}
+        seq.decide(option_id)
+        return {"ok": True}
+
+    def dismiss_launch(self, cid: str) -> dict:
+        seq = self.launch_sequences.get(cid)
+        if seq and seq.status == "DONE":
+            del self.launch_sequences[cid]
+        return {"ok": True}

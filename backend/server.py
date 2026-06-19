@@ -351,6 +351,12 @@ async def handle_client_message(cid: str, data: dict, ws: WebSocket):
     elif action == "launchContract":
         game.launch_contract(data.get("id", ""))
         await _broadcast_all()
+    elif action == "launchDecision":
+        game.launch_decision(data.get("id", ""), data.get("optionId", ""))
+        await _broadcast_all()
+    elif action == "dismissLaunch":
+        game.dismiss_launch(data.get("id", ""))
+        await _broadcast_all()
 
     # Echo updated state immediately for snappy controls
     if action in ("warpUp", "warpDown", "setWarpIdx", "togglePause"):

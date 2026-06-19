@@ -4,6 +4,7 @@ import { CommandCenter } from "./components/CommandCenter";
 import { CraftBuilder } from "./components/CraftBuilder";
 import { LaunchPad } from "./components/LaunchPad";
 import { Operations } from "./components/Operations";
+import { LaunchSequenceView } from "./components/LaunchSequenceView";
 import { DirectorPanel } from "./components/DirectorPanel";
 
 type View = "command" | "builder" | "launchpad" | "operations";
@@ -32,6 +33,10 @@ export default function App() {
 
   const warpLabel =
     st && st.warp >= 1 ? `×${st.warp.toLocaleString()}` : "×1";
+
+  // A live launch sequence owned by this Director takes over the screen.
+  const myLaunch = st?.launches?.find((l) => l.ownerId === conn.playerId)
+    ?? st?.launches?.[0];
 
   return (
     <div className="app">
@@ -89,6 +94,8 @@ export default function App() {
         {st?.playerNames?.length ? ` — ${st.playerNames.join(", ")}` : ""}
         &nbsp;·&nbsp; resize / move this window like any standard app
       </footer>
+
+      {myLaunch && <LaunchSequenceView seq={myLaunch} conn={conn} />}
 
       {showDirector && <DirectorPanel conn={conn} onClose={() => setShowDirector(false)} />}
 

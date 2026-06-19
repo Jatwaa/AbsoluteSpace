@@ -73,6 +73,7 @@ class ContractStatus(str, Enum):
     PLANNED          = "PLANNED"
     VEHICLE_ASSIGNED = "VEHICLE_ASSIGNED"
     READY            = "READY"
+    LAUNCHING        = "LAUNCHING"   # live ascent sequence in progress
     LAUNCHED         = "LAUNCHED"
 
 
