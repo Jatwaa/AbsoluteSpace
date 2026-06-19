@@ -69,9 +69,18 @@ def serialize_state(gs) -> dict:
         "funds": round(gs.funds, 1),
         "budgetPenalty": round(gs.budget_penalty, 1),
         "congressNote": gs.congress_note,
-        "contracts": [c.to_dict(now) for c in gs.contracts],
+        "contracts": [_contract_dict(gs, c, now) for c in gs.contracts],
         "crafts": [gs.craft_spec(sc) for sc in gs.saved_crafts],
     }
+
+
+def _contract_dict(gs, c, now) -> dict:
+    """Contract dict, with launch odds attached for vehicles at the pad."""
+    from .contracts import ContractStatus
+    d = c.to_dict(now)
+    if c.craft_name and c.status in (ContractStatus.VEHICLE_ASSIGNED, ContractStatus.READY):
+        d["launchOdds"] = gs.launch_odds(c)
+    return d
 
 
 def serialize_bodies(gs) -> dict:

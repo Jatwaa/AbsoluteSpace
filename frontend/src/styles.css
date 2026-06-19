@@ -639,6 +639,34 @@ button {
 .corrected-note { color: var(--green); font-size: 11px; }
 .ok-note.big.anomaly { color: var(--alert); }
 
+/* operations board sections */
+.board-section { margin-bottom: 12px; }
+.board-section-head { color: var(--accent); font-size: 10px; font-weight: 700; letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border); padding-bottom: 3px; margin-bottom: 6px; }
+.board-note { color: var(--text-dim); font-size: 10px; line-height: 1.4; padding: 2px 0 4px; }
+.to-pad { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+
+/* launch success odds panel */
+.odds-panel { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 4px; padding: 8px 10px; }
+.op-row { display: flex; align-items: center; gap: 12px; }
+.op-label { color: var(--text-dim); font-weight: 700; font-size: 11px; }
+.op-pct { font-weight: 700; font-size: 18px; }
+.op-crew { margin-left: auto; color: var(--text-dim); font-size: 10px; }
+.op-sources { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.op-src { display: flex; gap: 6px; background: var(--bg); border: 1px solid var(--border);
+  border-radius: 3px; padding: 2px 7px; font-size: 11px; }
+.op-src-label { color: var(--text); }
+.op-src-chance { color: var(--alert); font-weight: 700; }
+.op-clean { font-size: 11px; margin-top: 4px; }
+.op-note { font-size: 10px; line-height: 1.5; margin-top: 8px; border-top: 1px solid var(--grid); padding-top: 6px; }
+
+/* launch result banner */
+.launch-result { font-size: 18px; font-weight: 700; padding: 10px 12px; border-radius: 4px; text-align: center; }
+.launch-result.success { background: #14301c; color: var(--green); border: 1px solid var(--green); }
+.launch-result.degraded { background: #2f2a14; color: var(--warn); border: 1px solid var(--warn); }
+.launch-result.fail { background: #321614; color: var(--alert); border: 1px solid var(--alert); }
+.lr-detail { color: var(--text); font-size: 12px; margin: 8px 0; line-height: 1.5; }
+
 .lp-bar { flex: 0 0 auto; display: flex; align-items: center; gap: 14px; background: var(--bg-header); border-top: 1px solid var(--border); padding: 8px 14px; }
 .lp-bar .btn.back { background: var(--bg-panel); border: 1px solid var(--accent); color: var(--accent); padding: 6px 14px; border-radius: 3px; font-weight: 700; }
 .lp-hint { color: var(--text-dim); font-size: 11px; }

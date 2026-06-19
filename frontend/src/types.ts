@@ -140,6 +140,7 @@ export interface Contract {
   conflict: SlotConflict | null;
   ownerId: string | null;
   ownerName: string | null;
+  launchOdds?: LaunchOdds | null;
   missionName: string | null;
   outcome: string | null;
 }
@@ -165,6 +166,18 @@ export interface FlightSummary {
   controlAuthority: string;
   issues: FlightIssue[];
   flightEvents: FlightEvent[];
+}
+
+export interface OddsSource {
+  label: string;
+  kind: string;
+  baseChance: number;
+  chance: number;
+}
+export interface LaunchOdds {
+  successProbability: number;
+  crew: { label: string; skill: number; composure: number; crewed: boolean };
+  sources: OddsSource[];
 }
 
 export interface CraftSpec {

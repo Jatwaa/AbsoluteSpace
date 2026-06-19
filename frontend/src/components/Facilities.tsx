@@ -7,10 +7,10 @@ interface Facility {
 }
 
 const FACILITIES: Facility[] = [
+  { id: "OPERATIONS", label: "OPERATIONS", sub: "Select & plan missions", enabled: true, accent: "var(--accent)" },
   { id: "BUILDER", label: "VEHICLE ASSEMBLY", sub: "Design & build craft", enabled: true, accent: "var(--accent)" },
-  { id: "LAUNCHPAD", label: "LAUNCH PAD", sub: "Missions · dry runs · launch", enabled: true, accent: "var(--orange)" },
+  { id: "LAUNCHPAD", label: "LAUNCH PAD", sub: "Test runs · launch", enabled: true, accent: "var(--orange)" },
   { id: "MAP", label: "MISSION MAP", sub: "Solar-system view", enabled: true, accent: "var(--green)" },
-  { id: "CONGRESS", label: "CONGRESS", sub: "Budget & funding", enabled: false, accent: "var(--warn)" },
   { id: "ASTRO", label: "ASTRONAUT CORPS", sub: "Crew roster & training", enabled: false, accent: "#d08020" },
   { id: "TECH", label: "TECHNOLOGIES", sub: "R&D tech tree", enabled: false, accent: "#9670c8" },
 ];

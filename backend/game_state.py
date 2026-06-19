@@ -94,9 +94,13 @@ class GameState:
 
     def _seed_contracts(self):
         from .contracts import generate_contracts
-        new = generate_contracts(self.bodies, self.sim_time, self._contract_counter)
-        self._contract_counter += len(new)
-        self.contracts.extend(new)
+        from .historical import generate_historical
+        congress = generate_contracts(self.bodies, self.sim_time, self._contract_counter, count=3)
+        self._contract_counter += len(congress)
+        historical = generate_historical(self.bodies, self.sim_time, self._contract_counter, count=3)
+        self._contract_counter += len(historical)
+        self.contracts.extend(congress)
+        self.contracts.extend(historical)
 
     def _seed_demo_craft(self):
         """Provide ready-made crafts so the pipeline is usable immediately."""
@@ -394,12 +398,31 @@ class GameState:
 
     def _refill_contracts(self):
         from .contracts import ContractStatus, generate_contracts
-        avail = sum(1 for c in self.contracts if c.status == ContractStatus.AVAILABLE)
-        if avail < 2:
-            new = generate_contracts(self.bodies, self.sim_time,
-                                     self._contract_counter, count=2)
+        from .historical import generate_historical
+
+        def avail(src):
+            return sum(1 for c in self.contracts
+                       if c.status == ContractStatus.AVAILABLE and c.source == src)
+
+        if avail("CONGRESS") < 2:
+            new = generate_contracts(self.bodies, self.sim_time, self._contract_counter, count=2)
             self._contract_counter += len(new)
             self.contracts.extend(new)
+        if avail("HISTORICAL") < 2:
+            new = generate_historical(self.bodies, self.sim_time, self._contract_counter, count=2)
+            self._contract_counter += len(new)
+            self.contracts.extend(new)
+
+    def launch_odds(self, c):
+        """Success-probability assessment for a contract's assigned vehicle."""
+        if not c.craft_name:
+            return None
+        sc = self.craft_by_name(c.craft_name)
+        if not sc:
+            return None
+        from sim.aero import assess
+        from .flight_odds import success_odds
+        return success_odds(c, self.craft_spec(sc), assess(sc))
 
     def plan_contract(self, cid: str, window_index: int) -> dict:
         from .contracts import ContractStatus
@@ -715,23 +738,12 @@ class GameState:
             self.system_msg(f"CONGRESS: {c.title} on budget "
                             f"(§{c.spent:.0f}M / §{c.budget:.0f}M).")
 
-        # Resolve mission risk: each uncorrected issue rolls its failure chance.
-        risk = c.mission_risk()
-        triggered = []
-        for iss in c.open_issues():
-            if iss.failure_chance > 0 and random.random() < iss.failure_chance:
-                triggered.append(iss)
-        # Hidden-risk roll (untested areas)
-        hidden_hit = random.random() < max(0.0, risk - sum(i.failure_chance for i in c.open_issues()))
-
-        # ── Aerodynamic flight events from the wind-tunnel flight profile ──
-        from sim.aero import assess
-        flight = assess(sc)
-        aero_hit = None
-        for ev in flight["flightEvents"]:
-            if random.random() < ev["chance"]:
-                aero_hit = ev
-                break
+        # ── Resolve the launch against the computed success probability ──
+        from .flight_odds import resolve_launch
+        odds = self.launch_odds(c)
+        res = resolve_launch(odds, random) if odds else {
+            "result": "FAILURE", "culprit": "no flight assessment", "rewardFactor": 0.0}
+        p_pct = round(odds["successProbability"] * 100) if odds else 0
 
         flying = copy.deepcopy(sc)
         wins = hohmann_windows(self.bodies[c.origin], self.bodies[c.destination],
@@ -740,31 +752,30 @@ class GameState:
         if win is None:
             self.funds += LAUNCH_COST
             return {"error": "no launch window"}
-        mission = self.mc.create_mission(flying, c.origin, c.destination, win)
-        c.mission_name = mission.name
+
+        payout = int(c.reward * res["rewardFactor"])
+        if res["result"] == "SUCCESS":
+            c.outcome = f"SUCCESS: nominal flight ({p_pct}% predicted). Full reward."
+            mission = self.mc.create_mission(flying, c.origin, c.destination, win)
+            c.mission_name = mission.name
+            self.system_msg(f"LAUNCH: {c.title} — SUCCESS ({p_pct}% odds). "
+                            f"Reward §{payout}M. Mission {mission.name} active.")
+        elif res["result"] == "DEGRADED":
+            c.outcome = (f"DEGRADED: {res['culprit']} in flight — crew recovered a "
+                         f"partial mission ({p_pct}% odds). Partial reward.")
+            mission = self.mc.create_mission(flying, c.origin, c.destination, win)
+            c.mission_name = mission.name
+            self.system_msg(f"LAUNCH: {c.title} — anomaly ({res['culprit']}) recovered. "
+                            f"DEGRADED. Partial reward §{payout}M.")
+        else:  # FAILURE
+            c.outcome = f"FAILURE: {res['culprit']} ({p_pct}% predicted success). Vehicle lost."
+            c.mission_name = None
+            self.system_msg(f"LAUNCH: {c.title} — LAUNCH FAILURE ({res['culprit']}). "
+                            f"Vehicle lost. Payout §{payout}M.")
+
         c.status = ContractStatus.LAUNCHED
         c.conflict = None
         self._recompute_conflicts()   # this contract released its slot
-
-        if aero_hit:
-            # Aerodynamic failures during ascent are the most severe.
-            severe = aero_hit["code"] in ("LOSS_OF_CONTROL", "MAXQ_STRUCT",
-                                          "AEROELASTIC", "FAILS_TO_LIFT")
-            c.outcome = f"FLIGHT FAILURE: {aero_hit['description']}."
-            payout = 0 if severe else int(c.reward * 0.2)
-            self.system_msg(f"LAUNCH: {c.title} — {aero_hit['description'].upper()}. "
-                            f"{'Vehicle lost.' if severe else 'Mission degraded.'} "
-                            f"Payout §{payout}M.")
-        elif triggered or hidden_hit:
-            who = triggered[0].category if triggered else "an un-inspected subsystem"
-            c.outcome = f"ANOMALY: {who} failure in flight — partial reward."
-            payout = int(c.reward * 0.35)
-            self.system_msg(f"LAUNCH: {c.title} away — IN-FLIGHT ANOMALY ({who}). "
-                            f"Partial payout §{payout}M.")
-        else:
-            c.outcome = "NOMINAL: all systems performed within limits — full reward."
-            payout = c.reward
-            self.system_msg(f"LAUNCH: {c.title} away from {c.launch_site_id}. "
-                            f"NOMINAL — reward §{payout}M. Mission {mission.name} active.")
         self.funds += payout
-        return {"ok": True, "mission": mission.name, "outcome": c.outcome}
+        return {"ok": True, "outcome": c.outcome, "result": res["result"],
+                "mission": c.mission_name}

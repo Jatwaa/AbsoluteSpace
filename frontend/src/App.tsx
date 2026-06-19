@@ -3,9 +3,10 @@ import { useGameSocket } from "./useGameSocket";
 import { CommandCenter } from "./components/CommandCenter";
 import { CraftBuilder } from "./components/CraftBuilder";
 import { LaunchPad } from "./components/LaunchPad";
+import { Operations } from "./components/Operations";
 import { DirectorPanel } from "./components/DirectorPanel";
 
-type View = "command" | "builder" | "launchpad";
+type View = "command" | "builder" | "launchpad" | "operations";
 
 export default function App() {
   const conn = useGameSocket();
@@ -18,7 +19,9 @@ export default function App() {
       // Future: open mission map focused on this craft
       return;
     }
-    if (id === "BUILDER") {
+    if (id === "OPERATIONS") {
+      setView("operations");
+    } else if (id === "BUILDER") {
       setView("builder");
     } else if (id === "LAUNCHPAD") {
       setView("launchpad");
@@ -73,6 +76,10 @@ export default function App() {
         <CommandCenter conn={conn} onOpenFacility={handleFacility} />
       )}
       {view === "builder" && <CraftBuilder onBack={() => setView("command")} />}
+      {view === "operations" && (
+        <Operations conn={conn} onBack={() => setView("command")}
+          onGoToPad={() => setView("launchpad")} />
+      )}
       {view === "launchpad" && (
         <LaunchPad conn={conn} onBack={() => setView("command")} />
       )}

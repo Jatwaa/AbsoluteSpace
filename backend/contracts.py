@@ -183,15 +183,20 @@ class MissionContract:
     mission_name: Optional[str] = None
     outcome: Optional[str] = None
 
-    def mission_risk(self) -> float:
+    def hidden_component(self) -> float:
+        """Risk from subsystem areas not yet inspected by a test operation."""
         areas = list(RISK_AREAS)
         if self.required_crew > 0:
             areas.append("ASTRO_TRAINING")
         inspected = sum(1 for a in areas if a in self.ops_run)
-        hidden = BASE_HIDDEN * (len(areas) - inspected) / len(areas)
+        return BASE_HIDDEN * (len(areas) - inspected) / len(areas)
+
+    def wear_risk(self) -> float:
+        return min(0.30, self.vehicle_wear / 100.0 * 0.5)
+
+    def mission_risk(self) -> float:
         surfaced = sum(i.failure_chance for i in self.issues if not i.corrected)
-        wear_risk = min(0.30, self.vehicle_wear / 100.0 * 0.5)
-        return min(0.95, hidden + surfaced + wear_risk)
+        return min(0.95, self.hidden_component() + surfaced + self.wear_risk())
 
     def open_issues(self) -> list[Issue]:
         return [i for i in self.issues if not i.corrected]
@@ -276,7 +281,7 @@ def generate_contracts(bodies, sim_time, start_id, count=4):
             origin="Earth", destination=t["destination"],
             required_delta_v=budget["total_one_way"],
             required_crew=t["crew"], payload_keywords=t["payload"],
-            reward=t["reward"], source="GENERATOR",
+            reward=t["reward"], source="CONGRESS",
         ))
     return out
 
