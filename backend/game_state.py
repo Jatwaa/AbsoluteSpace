@@ -70,6 +70,7 @@ class GameState:
         self.budget_penalty = 0.0    # congressional penalty applied to next allotment
         self.congress_note = ""      # last congressional action, for display
         self.launch_sequences = {}   # contract_id -> LaunchSequence (live ascents)
+        self.reentry_sequences = {}  # mission_name -> ReentrySequence (live entries)
 
         # Background controller chatter
         self._chatter_timer = 0.0
@@ -163,8 +164,10 @@ class GameState:
             self.mc.step(dt_sim)
             self._process_schedule()
 
-        # Launch sequences run in real time regardless of warp/pause.
+        # Launch & reentry sequences run in real time regardless of warp/pause.
         self._advance_launches(dt_real)
+        self._advance_reentries(dt_real)
+        self._check_reentry_triggers()
 
         # Background chatter on a wall-clock cadence
         self._chatter_timer += dt_real
@@ -785,18 +788,111 @@ class GameState:
             if sc and wins:
                 mission = self.mc.create_mission(copy.deepcopy(sc), c.origin, c.destination, wins[0])
                 c.mission_name = mission.name
+                self._tag_mission_entry(mission, c)
         self.funds += payout
         self.system_msg(f"FLIGHT: {c.title} — {seq.result}. {seq.outcome} Payout §{payout}M.")
 
+    def _tag_mission_entry(self, mission, contract):
+        """Decide whether a mission must fly an atmospheric entry, and stash inputs."""
+        from .flight_odds import crew_profile
+        obj = (contract.objective or "").lower()
+        crewed = contract.required_crew > 0
+        if "lander" in obj:
+            kind, body = "LANDING", contract.destination
+        elif crewed or "sample" in obj or "flyby" in obj:
+            kind, body = "RETURN", "Earth"
+        else:
+            mission.requires_entry = False
+            return
+        sc = self.craft_by_name(contract.craft_name)
+        spec = self.craft_spec(sc) if sc else {"crew": contract.required_crew, "partNames": []}
+        mission.requires_entry = True
+        mission.entry_kind = kind
+        mission.entry_body = body
+        mission.entry_reward = contract.reward
+        mission.entry_crew = crew_profile(contract, spec).to_dict()
+        # entry velocity: interplanetary return is fast & hot; orbital landing slower
+        body_v = {"Mars": 3.6, "Venus": 7.2, "Earth": 7.8, "Mercury": 3.0,
+                  "Jupiter": 12.0, "Saturn": 10.0}.get(body, 7.5)
+        mission.entry_velocity = 11.0 if kind == "RETURN" else body_v
+        # heat-shield adequacy from the parts
+        blob = " ".join(spec.get("partNames", [])).lower()
+        hints = ("lander", "descent", "capsule", "dragon", "orion", "soyuz", "starliner",
+                 "shenzhou", "gaganyaan", "apollo", "sky crane", "sample", "cm", "heat")
+        mission.entry_heatshield = any(h in blob for h in hints)
+        mission.entry_aero = self.craft_spec(sc).get("flight") if sc else None
+        mission.reentry_state = "none"
+
+    # ── Reentry sequences ──────────────────────────────────────────────────────
+
+    def _check_reentry_triggers(self):
+        from sim.mission import MissionPhase
+        from .reentry_sequence import ReentrySequence
+        import random as _random
+        for m in self.mc.missions:
+            if not getattr(m, "requires_entry", False):
+                continue
+            if getattr(m, "reentry_state", "none") != "none":
+                continue
+            if m.phase in (MissionPhase.ARRIVAL, MissionPhase.ORBIT, MissionPhase.LANDED):
+                m.reentry_state = "running"
+                sc = m.spacecraft
+                from sim.aero import assess
+                aero = assess(sc)
+                seq = ReentrySequence(
+                    mission_name=m.name,
+                    title=f"{m.name} {('Return' if m.entry_kind=='RETURN' else 'Landing')} "
+                          f"at {m.entry_body}",
+                    craft_name=sc.name, owner_id=None,
+                    crew=getattr(m, "entry_crew",
+                                 {"label": "Automated entry systems", "skill": 0.7,
+                                  "composure": 0.5, "crewed": False}),
+                    entry_velocity=getattr(m, "entry_velocity", 7.8),
+                    ballistic=aero.get("ballisticCoef", 5000),
+                    stability=aero.get("stability", "STABLE"),
+                    has_heatshield=getattr(m, "entry_heatshield", True),
+                    rng=_random.Random())
+                self.reentry_sequences[m.name] = seq
+                self.system_msg(f"ENTRY: {m.name} has reached {m.entry_body} — beginning "
+                                f"atmospheric entry.")
+
+    def _advance_reentries(self, dt_real: float):
+        for key, seq in list(self.reentry_sequences.items()):
+            seq.step(dt_real)
+            if seq.status == "DONE" and not getattr(seq, "_finalized", False):
+                seq._finalized = True
+                self._finalize_reentry(key, seq)
+
+    def _finalize_reentry(self, mission_name, seq):
+        from sim.mission import MissionPhase
+        m = self.mc.mission_by_name(mission_name)
+        if m:
+            m.reentry_state = "done"
+            reward = getattr(m, "entry_reward", 0)
+            if seq.result == "SUCCESS":
+                m.phase = MissionPhase.LANDED if m.entry_kind == "LANDING" else MissionPhase.COMPLETE
+                bonus = int(reward * 0.15)
+                self.funds += bonus
+                self.system_msg(f"ENTRY: {mission_name} — {seq.outcome} Landing bonus §{bonus}M.")
+            elif seq.result == "DEGRADED":
+                m.phase = MissionPhase.LANDED if m.entry_kind == "LANDING" else MissionPhase.COMPLETE
+                self.system_msg(f"ENTRY: {mission_name} — {seq.outcome}")
+            else:  # FAILURE
+                m.phase = MissionPhase.ABORTED
+                clawback = int(reward * 0.25)
+                self.funds = max(0.0, self.funds - clawback)
+                self.system_msg(f"ENTRY: {mission_name} — {seq.outcome} Lost (−§{clawback}M).")
+
     def launch_decision(self, cid: str, option_id: str) -> dict:
-        seq = self.launch_sequences.get(cid)
+        seq = self.launch_sequences.get(cid) or self.reentry_sequences.get(cid)
         if not seq:
-            return {"error": "no active launch"}
+            return {"error": "no active sequence"}
         seq.decide(option_id)
         return {"ok": True}
 
     def dismiss_launch(self, cid: str) -> dict:
-        seq = self.launch_sequences.get(cid)
-        if seq and seq.status == "DONE":
-            del self.launch_sequences[cid]
+        for store in (self.launch_sequences, self.reentry_sequences):
+            seq = store.get(cid)
+            if seq and seq.status == "DONE":
+                del store[cid]
         return {"ok": True}

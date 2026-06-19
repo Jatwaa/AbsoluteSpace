@@ -74,7 +74,7 @@ class LaunchSequence:
         self._rolled = False
         self.log: list[str] = []
         self.telemetry = {"altitudeKm": 0.0, "velocityKms": 0.0,
-                          "qKpa": 0.0, "throttle": 1.0, "aoaOk": True}
+                          "qKpa": 0.0, "throttle": 1.0, "tempC": 0.0, "gLoad": 0.0}
         self._v_start = 0.0
         self._a_start = 0.0
         self._say("FLIGHT", f"Terminal count complete. {self.craft_name} is GO for launch.")
@@ -313,6 +313,7 @@ class LaunchSequence:
     def to_dict(self) -> dict:
         key, title, layer, alt_end, vel_end, dur = self.phase
         return {
+            "kind": "LAUNCH",
             "contractId": self.contract_id,
             "title": self.title,
             "craftName": self.craft_name,

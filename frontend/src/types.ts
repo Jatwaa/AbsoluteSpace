@@ -197,7 +197,8 @@ export interface LaunchTelemetry {
   velocityKms: number;
   qKpa: number;
   throttle: number;
-  aoaOk: boolean;
+  tempC: number;
+  gLoad: number;
 }
 export interface LaunchOption {
   id: string;
@@ -218,6 +219,7 @@ export interface LaunchDecisionState {
 }
 export interface LaunchLogLine { who: string; msg: string; }
 export interface LaunchSequenceState {
+  kind?: "LAUNCH" | "REENTRY";
   contractId: string;
   title: string;
   craftName: string;

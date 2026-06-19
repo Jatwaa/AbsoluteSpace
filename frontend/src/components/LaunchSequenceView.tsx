@@ -6,13 +6,16 @@ interface Props {
   conn: GameConnection;
 }
 
-const PHASES = ["IGNITION", "ASCENT", "MAXQ", "STAGING", "UPPER", "INSERTION"];
+const LAUNCH_PHASES = ["IGNITION", "ASCENT", "MAXQ", "STAGING", "UPPER", "INSERTION"];
+const REENTRY_PHASES = ["DEORBIT", "INTERFACE", "PEAK HEAT", "MAX-G", "DESCENT", "LANDING"];
 const MAX_ALT = 200; // km, for the gauge
 
 export function LaunchSequenceView({ seq, conn }: Props) {
   const t = seq.telemetry;
   const decision = seq.status === "DECISION" ? seq.decision : null;
   const done = seq.status === "DONE";
+  const reentry = seq.kind === "REENTRY";
+  const PHASES = reentry ? REENTRY_PHASES : LAUNCH_PHASES;
 
   return (
     <div className="ls-overlay">
@@ -20,7 +23,7 @@ export function LaunchSequenceView({ seq, conn }: Props) {
         {/* Header */}
         <div className="ls-header">
           <div>
-            <div className="ls-title">LAUNCH · {seq.title}</div>
+            <div className="ls-title">{reentry ? "REENTRY" : "LAUNCH"} · {seq.title}</div>
             <div className="ls-sub">{seq.craftName} · {seq.crewLabel}{seq.crewed ? " · CREWED" : " · uncrewed"}</div>
           </div>
           <div className="ls-phase-now">
@@ -48,9 +51,9 @@ export function LaunchSequenceView({ seq, conn }: Props) {
         </div>
 
         <div className="ls-main">
-          {/* Ascent gauge */}
+          {/* Ascent / descent gauge */}
           <div className="ls-ascent">
-            <AscentGauge altitudeKm={t.altitudeKm} />
+            <AscentGauge altitudeKm={t.altitudeKm} reentry={reentry} />
           </div>
 
           {/* Telemetry + comm */}
@@ -58,10 +61,21 @@ export function LaunchSequenceView({ seq, conn }: Props) {
             <div className="ls-telemetry">
               <Tele label="ALTITUDE" value={`${t.altitudeKm.toFixed(1)} km`} />
               <Tele label="VELOCITY" value={`${t.velocityKms.toFixed(2)} km/s`} />
-              <Tele label="DYN. PRESSURE" value={`${t.qKpa.toFixed(1)} kPa`}
-                warn={t.qKpa > 30} />
-              <Tele label="THROTTLE" value={`${Math.round(t.throttle * 100)}%`}
-                warn={t.throttle < 1} />
+              {reentry ? (
+                <>
+                  <Tele label="SHIELD TEMP" value={`${Math.round(t.tempC)}°C`}
+                    warn={t.tempC > 1800} />
+                  <Tele label="G-LOAD" value={`${t.gLoad.toFixed(1)} g`}
+                    warn={t.gLoad > 8} />
+                </>
+              ) : (
+                <>
+                  <Tele label="DYN. PRESSURE" value={`${t.qKpa.toFixed(1)} kPa`}
+                    warn={t.qKpa > 30} />
+                  <Tele label="THROTTLE" value={`${Math.round(t.throttle * 100)}%`}
+                    warn={t.throttle < 1} />
+                </>
+              )}
             </div>
 
             <div className="ls-comm">
@@ -137,7 +151,7 @@ function CountdownBar({ timeLeft, deadline }: { timeLeft: number; deadline: numb
   );
 }
 
-function AscentGauge({ altitudeKm }: { altitudeKm: number }) {
+function AscentGauge({ altitudeKm, reentry }: { altitudeKm: number; reentry?: boolean }) {
   const H = 460;
   const frac = Math.min(1, altitudeKm / MAX_ALT);
   const rocketY = H - 30 - frac * (H - 60);
@@ -164,12 +178,20 @@ function AscentGauge({ altitudeKm }: { altitudeKm: number }) {
       })}
       {/* ground */}
       <rect x="0" y={H - 30} width="150" height="30" fill="#1a1208" />
-      {/* rocket */}
-      <g transform={`translate(75 ${rocketY})`}>
-        <polygon points="0,-10 4,4 -4,4" fill="#dcf0ff" />
-        <rect x="-3" y="4" width="6" height="10" fill="#aad2ff" />
-        <polygon points="0,16 4,10 -4,10" fill="#ff9632" />
-      </g>
+      {/* vehicle — rocket climbing (launch) or capsule with entry glow (reentry) */}
+      {reentry ? (
+        <g transform={`translate(75 ${rocketY})`}>
+          <ellipse cx="0" cy="10" rx="9" ry="5" fill="#ff7032" opacity="0.7" />
+          <path d="M -5,-4 L 5,-4 L 7,4 L -7,4 Z" fill="#dcf0ff" />
+          <line x1="-7" y1="4" x2="7" y2="4" stroke="#ff9632" strokeWidth="2" />
+        </g>
+      ) : (
+        <g transform={`translate(75 ${rocketY})`}>
+          <polygon points="0,-10 4,4 -4,4" fill="#dcf0ff" />
+          <rect x="-3" y="4" width="6" height="10" fill="#aad2ff" />
+          <polygon points="0,16 4,10 -4,10" fill="#ff9632" />
+        </g>
+      )}
       <text x="144" y={rocketY} fill="#aad2ff" fontSize="8" textAnchor="end">
         {altitudeKm.toFixed(0)}km
       </text>
