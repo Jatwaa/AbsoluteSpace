@@ -188,6 +188,19 @@ def list_crafts():
     return {"crafts": [game.craft_spec(sc) for sc in game.saved_crafts]}
 
 
+@app.post("/api/windtunnel")
+def wind_tunnel(payload: dict):
+    """Run the virtual wind tunnel on an (unsaved) part list — full assessment."""
+    from sim.aero import assess
+    from sim.craft import Spacecraft
+    part_names = payload.get("parts") or []
+    parts, err = game._build_parts(part_names)
+    if err:
+        return JSONResponse(err, status_code=400)
+    sc = Spacecraft(name=payload.get("name") or "Test Article", parts=parts)
+    return assess(sc)
+
+
 @app.post("/api/craft")
 async def save_craft(payload: dict):
     """Assemble and store a NEW craft from an ordered list of module names."""

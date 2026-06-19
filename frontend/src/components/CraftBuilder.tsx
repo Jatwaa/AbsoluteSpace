@@ -8,6 +8,7 @@ import {
 import { ModuleTree } from "./ModuleTree";
 import { RocketStack } from "./RocketStack";
 import { CraftStats } from "./CraftStats";
+import { WindTunnel } from "./WindTunnel";
 
 interface Props {
   onBack: () => void;
@@ -31,6 +32,7 @@ export function CraftBuilder({ onBack }: Props) {
   const [status, setStatus] = useState<string | null>(null);
   const [crafts, setCrafts] = useState<CraftSummary[]>([]);
   const [editing, setEditing] = useState<string | null>(null); // original name being edited
+  const [showTunnel, setShowTunnel] = useState(false);
   const uidRef = useRef(1);
 
   const moduleMap = useMemo(() => flattenModules(tree), [tree]);
@@ -190,6 +192,10 @@ export function CraftBuilder({ onBack }: Props) {
           <input value={name} onChange={(e) => setName(e.target.value)} />
         </label>
 
+        <button className="btn wind" disabled={parts.length === 0}
+          onClick={() => setShowTunnel(true)} title="Assess flight worthiness">
+          🛩 WIND TUNNEL
+        </button>
         <button className="btn" onClick={newCraft}>NEW</button>
         {editing && (
           <button className="btn save" onClick={onUpdate} title="Save changes to this craft">
@@ -212,6 +218,14 @@ export function CraftBuilder({ onBack }: Props) {
             : "click catalog to add · select a part for ▲▼✕ · Del removes · PgUp/PgDn reorder"}
         </span>
       </div>
+
+      {showTunnel && (
+        <WindTunnel
+          parts={parts.map((p) => p.mod.name)}
+          craftName={name}
+          onClose={() => setShowTunnel(false)}
+        />
+      )}
     </div>
   );
 }

@@ -144,6 +144,29 @@ export interface Contract {
   outcome: string | null;
 }
 
+export interface FlightIssue {
+  code: string;
+  severity: "INFO" | "WARN" | "CRITICAL";
+  title: string;
+  detail: string;
+}
+export interface FlightEvent {
+  code: string;
+  chance: number;
+  description: string;
+}
+export interface FlightSummary {
+  verdict: string;
+  stability: string;
+  staticMarginCal: number;
+  finenessRatio: number;
+  twr: number;
+  maxQLevel: string;
+  controlAuthority: string;
+  issues: FlightIssue[];
+  flightEvents: FlightEvent[];
+}
+
 export interface CraftSpec {
   name: string;
   stages: number;
@@ -153,6 +176,7 @@ export interface CraftSpec {
   twr: number;
   crew: number;
   partNames: string[];
+  flight?: FlightSummary;
 }
 
 export interface GameStateMsg {

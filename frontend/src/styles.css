@@ -384,6 +384,59 @@ button {
 }
 .builder-bar .load-field select:focus { outline: none; border-color: var(--accent); }
 .builder-bar .btn.danger { border-color: var(--alert); color: var(--alert); }
+.builder-bar .btn.wind { border-color: var(--orange); color: var(--orange); }
+
+/* ── Wind tunnel modal ─────────────────────────────────────── */
+.wt-modal { width: 760px; max-width: 95vw; max-height: 92vh; overflow-y: auto;
+  background: var(--bg-panel); border: 1px solid var(--border-hi); border-radius: 6px; }
+.wt-head { display: flex; justify-content: space-between; align-items: center;
+  background: var(--bg-header); border-bottom: 1px solid var(--border); padding: 8px 12px;
+  color: var(--orange); font-weight: 700; font-size: 13px; }
+.wt-head > div { display: flex; align-items: center; gap: 10px; }
+.wt-loading { padding: 30px; text-align: center; color: var(--text-dim); }
+.wt-body { display: grid; grid-template-columns: 170px 1fr; gap: 10px; padding: 12px; }
+.wt-svg { width: 100%; height: 420px; background: #070b12; border: 1px solid var(--border); border-radius: 4px; }
+.wt-readout { min-width: 0; }
+.wt-verdict { font-size: 16px; font-weight: 700; padding: 6px 10px; border-radius: 4px; text-align: center; margin-bottom: 8px; }
+.wt-good { color: var(--green); }
+.wt-warn { color: var(--warn); }
+.wt-bad { color: var(--alert); }
+.wt-verdict.wt-good { background: #14301c; border: 1px solid var(--green); }
+.wt-verdict.wt-warn { background: #2f2a14; border: 1px solid var(--warn); }
+.wt-verdict.wt-bad { background: #321614; border: 1px solid var(--alert); }
+.wt-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; margin-bottom: 10px; }
+.wt-metric { display: flex; justify-content: space-between; border-bottom: 1px solid var(--grid); padding: 2px 0; }
+.wt-m-label { color: var(--text-dim); font-size: 11px; }
+.wt-m-value { color: var(--text-bright); font-size: 12px; font-weight: 700; }
+.wt-section-label { color: var(--text-dim); font-weight: 700; font-size: 11px; margin: 8px 0 4px; }
+.wt-clean { color: var(--green); font-size: 12px; }
+.wt-issue { border-left: 3px solid var(--border); padding: 4px 8px; margin-bottom: 4px; background: var(--bg); border-radius: 0 3px 3px 0; }
+.wt-issue.sev-CRITICAL { border-left-color: var(--alert); }
+.wt-issue.sev-WARN { border-left-color: var(--warn); }
+.wt-issue.sev-INFO { border-left-color: var(--accent-dim); }
+.wt-issue-head { display: flex; gap: 8px; align-items: center; }
+.wt-sev { font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 2px; background: var(--bg-panel); }
+.sev-CRITICAL .wt-sev, .fp-issue.sev-CRITICAL .wt-sev { color: var(--alert); }
+.sev-WARN .wt-sev, .fp-issue.sev-WARN .wt-sev { color: var(--warn); }
+.sev-INFO .wt-sev { color: var(--accent); }
+.wt-issue-title { color: var(--text-bright); font-size: 12px; font-weight: 700; }
+.wt-issue-detail { color: var(--text-dim); font-size: 11px; margin-top: 2px; line-height: 1.4; }
+.wt-event { display: flex; gap: 8px; font-size: 11px; color: var(--text); padding: 2px 0; }
+.wt-event-chance { color: var(--orange); font-weight: 700; min-width: 36px; }
+.wt-note { color: var(--text-dim); font-size: 10px; line-height: 1.5; margin-top: 10px; border-top: 1px solid var(--grid); padding-top: 8px; }
+
+/* flight badges + launch-pad flight profile */
+.flight-badge { font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 3px; }
+.flight-badge.fvFLIGHTWORTHY { background: #14301c; color: var(--green); }
+.flight-badge.fvMARGINAL { background: #2f2a14; color: var(--warn); }
+.flight-badge.fvNOTFLIGHTWORTHY { background: #321614; color: var(--alert); }
+.flight-profile { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 4px; padding: 8px 10px; }
+.fp-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
+.fp-label { color: var(--orange); font-weight: 700; font-size: 11px; }
+.fp-meta { color: var(--text-dim); font-size: 10px; }
+.fp-clean { color: var(--green); font-size: 11px; }
+.fp-issue { font-size: 11px; color: var(--text); padding: 2px 0; }
+.fp-events { color: var(--text-dim); font-size: 10px; margin-top: 4px; border-top: 1px solid var(--grid); padding-top: 4px; }
 .builder-status { color: var(--green); font-size: 11px; }
 .builder-hint { color: var(--text-dim); font-size: 10px; margin-left: auto; }
 

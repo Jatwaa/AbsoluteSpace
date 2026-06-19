@@ -280,7 +280,20 @@ class GameState:
     def craft_spec(self, sc: Spacecraft) -> dict:
         """Computed specs for a saved craft, used by the launch pipeline + builder."""
         from sim.craft import ModuleType
+        from sim.aero import assess
         part_names = [p.name for p in sc.parts if p.module_type != ModuleType.DECOUPLER]
+        a = assess(sc)
+        flight = {
+            "verdict": a["verdict"],
+            "stability": a["stability"],
+            "staticMarginCal": a["staticMarginCal"],
+            "finenessRatio": a["finenessRatio"],
+            "twr": a["twr"],
+            "maxQLevel": a["maxQLevel"],
+            "controlAuthority": a["controlAuthority"],
+            "issues": a["issues"],
+            "flightEvents": a["flightEvents"],
+        }
         return {
             "name": sc.name,
             "stages": len(sc.compute_stages()),
@@ -292,6 +305,7 @@ class GameState:
             "partNames": part_names,
             # Full ordered part list (incl. decouplers) so the builder can reload it
             "partList": [p.name for p in sc.parts],
+            "flight": flight,
         }
 
     def craft_by_name(self, name: str) -> Optional[Spacecraft]:
@@ -710,6 +724,15 @@ class GameState:
         # Hidden-risk roll (untested areas)
         hidden_hit = random.random() < max(0.0, risk - sum(i.failure_chance for i in c.open_issues()))
 
+        # ── Aerodynamic flight events from the wind-tunnel flight profile ──
+        from sim.aero import assess
+        flight = assess(sc)
+        aero_hit = None
+        for ev in flight["flightEvents"]:
+            if random.random() < ev["chance"]:
+                aero_hit = ev
+                break
+
         flying = copy.deepcopy(sc)
         wins = hohmann_windows(self.bodies[c.origin], self.bodies[c.destination],
                                self.bodies["Sun"], self.sim_time, n_windows=5)
@@ -723,7 +746,16 @@ class GameState:
         c.conflict = None
         self._recompute_conflicts()   # this contract released its slot
 
-        if triggered or hidden_hit:
+        if aero_hit:
+            # Aerodynamic failures during ascent are the most severe.
+            severe = aero_hit["code"] in ("LOSS_OF_CONTROL", "MAXQ_STRUCT",
+                                          "AEROELASTIC", "FAILS_TO_LIFT")
+            c.outcome = f"FLIGHT FAILURE: {aero_hit['description']}."
+            payout = 0 if severe else int(c.reward * 0.2)
+            self.system_msg(f"LAUNCH: {c.title} — {aero_hit['description'].upper()}. "
+                            f"{'Vehicle lost.' if severe else 'Mission degraded.'} "
+                            f"Payout §{payout}M.")
+        elif triggered or hidden_hit:
             who = triggered[0].category if triggered else "an un-inspected subsystem"
             c.outcome = f"ANOMALY: {who} failure in flight — partial reward."
             payout = int(c.reward * 0.35)

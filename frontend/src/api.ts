@@ -65,6 +65,73 @@ export async function deleteCraft(name: string): Promise<{ ok?: boolean; error?:
   return r.json();
 }
 
+// ── Virtual wind tunnel ─────────────────────────────────────────────────────
+
+export interface FlightIssue {
+  code: string;
+  severity: "INFO" | "WARN" | "CRITICAL";
+  title: string;
+  detail: string;
+}
+export interface FlightEvent {
+  code: string;
+  chance: number;
+  description: string;
+}
+export interface SilhouettePart {
+  name: string;
+  type: string;
+  width: number;
+  length: number;
+  posFrac: number;
+  massFrac: number;
+}
+export interface WindTunnelResult {
+  length: number;
+  diameter: number;
+  finenessRatio: number;
+  comFromNose: number;
+  copFromNose: number;
+  comFraction: number;
+  copFraction: number;
+  staticMarginCal: number;
+  stability: "STABLE" | "MARGINAL" | "UNSTABLE";
+  stable: boolean;
+  twr: number;
+  dragCoef: number;
+  ballisticCoef: number;
+  maxQLevel: "LOW" | "MODERATE" | "HIGH" | "SEVERE";
+  controlAuthority: "OK" | "LIMITED" | "NONE";
+  gimbalFraction: number;
+  verdict: "FLIGHT-WORTHY" | "MARGINAL" | "NOT FLIGHT-WORTHY";
+  issues: FlightIssue[];
+  flightEvents: FlightEvent[];
+  profile: SilhouettePart[];
+  error?: string;
+}
+
+export async function windTunnel(parts: string[], name?: string): Promise<WindTunnelResult> {
+  const r = await fetch("/api/windtunnel", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ parts, name }),
+  });
+  return r.json();
+}
+
+// compact flight summary attached to each saved craft in /api/crafts + state
+export interface FlightSummary {
+  verdict: string;
+  stability: string;
+  staticMarginCal: number;
+  finenessRatio: number;
+  twr: number;
+  maxQLevel: string;
+  controlAuthority: string;
+  issues: FlightIssue[];
+  flightEvents: FlightEvent[];
+}
+
 export interface LaunchSite {
   id: string;
   name: string;

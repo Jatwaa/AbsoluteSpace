@@ -90,7 +90,8 @@ export function LaunchPad({ conn, onBack }: Props) {
                 <VehicleStep c={selected} crafts={crafts} onAssign={conn.assignCraft} />
               )}
               {viewStep === 3 && (
-                <PadStep c={selected} sites={sites} conn={conn} funds={st?.funds ?? 0} />
+                <PadStep c={selected} sites={sites} conn={conn} funds={st?.funds ?? 0}
+                  craft={crafts.find((k) => k.name === selected.craftName)} />
               )}
             </div>
           )}
@@ -280,6 +281,12 @@ function VehicleStep({ c, crafts, onAssign }: {
             <div className="ck-top">
               <span className="ck-name">{k.name}</span>
               <span className="ck-stages">{k.stages} stage{k.stages > 1 ? "s" : ""}</span>
+              {k.flight && (
+                <span className={`flight-badge fv-${k.flight.verdict.replace(/[^A-Z]/g, "")}`}
+                  title={k.flight.issues.map((i) => i.title).join(" · ") || "No adverse characteristics"}>
+                  {k.flight.verdict}
+                </span>
+              )}
               {assigned && <span className="ck-assigned">✓ assigned</span>}
             </div>
             <div className="ck-checks">
@@ -305,8 +312,8 @@ function Check({ ok, label }: { ok: boolean; label: string }) {
 
 // ── Step 4: Launch Pad ────────────────────────────────────────────────────────
 
-function PadStep({ c, sites, conn, funds }: {
-  c: Contract; sites: LaunchSite[]; conn: GameConnection; funds: number;
+function PadStep({ c, sites, conn, funds, craft }: {
+  c: Contract; sites: LaunchSite[]; conn: GameConnection; funds: number; craft?: CraftSpec;
 }) {
   const winT = c.chosenWindow?.departTime ?? 0;
   const launchT = c.plannedLaunchTime ?? winT;
@@ -344,6 +351,37 @@ function PadStep({ c, sites, conn, funds }: {
         </div>
         {over && <div className="bb-warn">Overrun triggers a congressional penalty to your next mission's allotment.</div>}
       </div>
+
+      {/* Flight profile (wind-tunnel) of the assigned vehicle */}
+      {craft?.flight && (
+        <div className="flight-profile">
+          <div className="fp-head">
+            <span className="fp-label">FLIGHT PROFILE · {craft.name}</span>
+            <span className={`flight-badge fv-${craft.flight.verdict.replace(/[^A-Z]/g, "")}`}>
+              {craft.flight.verdict}
+            </span>
+            <span className="fp-meta">
+              {craft.flight.stability} · margin {craft.flight.staticMarginCal.toFixed(2)} cal ·
+              fineness {craft.flight.finenessRatio.toFixed(1)}:1 · max-Q {craft.flight.maxQLevel}
+            </span>
+          </div>
+          {craft.flight.issues.length === 0 ? (
+            <div className="fp-clean">✓ No adverse flight characteristics.</div>
+          ) : (
+            craft.flight.issues.map((i) => (
+              <div key={i.code} className={`fp-issue sev-${i.severity}`}>
+                <span className="wt-sev">{i.severity}</span> {i.title}
+              </div>
+            ))
+          )}
+          {craft.flight.flightEvents.length > 0 && (
+            <div className="fp-events">
+              In-flight risk: {craft.flight.flightEvents
+                .map((e) => `${e.description} (${Math.round(e.chance * 100)}%)`).join(" · ")}
+            </div>
+          )}
+        </div>
+      )}
 
       {c.conflict && (
         <div className="conflict-banner">
