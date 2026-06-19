@@ -48,24 +48,34 @@ React (Vite/TS) ──REST /api/*──▶ FastAPI server ──wraps──▶ s
   Launch Pad).
 - `main.py` + `ui/` — original single-player pygame build (reference).
 
-## Quick start
+## Quick start — one click
 
-Requires **Python 3.11+** and **Node 18+**.
+The **Start** launcher detects your OS, installs what's missing, builds the UI,
+runs the server, and opens the game in your browser — all on one port.
+
+| OS | Do this |
+|----|---------|
+| **Windows** | double-click **`Start.bat`** |
+| **macOS** | double-click **`Start.command`** (or `./Start.command` in Terminal) |
+| **Linux** | run **`./start.sh`** |
+
+Any platform: `python start.py`.
+
+Requirements: **Python 3.11+** (always), and **Node.js 18+** the first time only
+(to build the web interface — after that the build is cached). The game then
+runs at <http://localhost:8000>; open it in multiple windows/tabs for multiplayer
+(shared game state, chat, and launch-slot contention).
+
+### Manual / development run
 
 ```bash
-# 1. Backend (game server on :8000)
+# Backend game server (also serves the built UI) on :8000
 pip install -r requirements-web.txt
 python -m backend.run
 
-# 2. Frontend (web UI on :5173)
-cd frontend
-npm install
-npm run dev
+# Frontend with hot-reload on :5173 (proxies the API to :8000)
+cd frontend && npm install && npm run dev
 ```
-
-Open <http://localhost:5173>. Open it in multiple windows to play multiplayer
-(shared game state, chat, and launch-slot contention). On Windows you can launch
-both with `./run_web.ps1`.
 
 See [WEB_README.md](WEB_README.md) for the full API and run details.
 

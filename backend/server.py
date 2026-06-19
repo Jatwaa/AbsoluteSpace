@@ -17,6 +17,7 @@ multiple browsers connected to this server share one live game + chat room.
 """
 
 from __future__ import annotations
+import os
 import asyncio
 import uuid
 import time
@@ -25,6 +26,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from .game_state import GameState
 from .serializers import (
@@ -358,3 +360,12 @@ async def handle_client_message(cid: str, data: dict, ws: WebSocket):
 async def _broadcast_all():
     await hub.broadcast(serialize_state(game))
     await hub.broadcast(serialize_chat(game))
+
+
+# ── Static frontend (production) ──────────────────────────────────────────────
+# Serve the built React app from one origin so the whole game runs on a single
+# port. Mounted LAST so the /api/* routes and /ws above take priority. Active
+# only when the frontend has been built (frontend/dist exists).
+_DIST = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "dist")
+if os.path.isdir(_DIST):
+    app.mount("/", StaticFiles(directory=_DIST, html=True), name="static")
